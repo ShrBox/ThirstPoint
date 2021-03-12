@@ -40,7 +40,7 @@ void onPlayerUseItem(PlayerUseItemEV ev) { //水瓶
 			wp.sendText(u8"非纯净水不能补充TP", JUKEBOX_POPUP);
 			return;
 		}
-		xuid_t plXuid = stoull(offPlayer::getXUID(ev.Player));
+		xuid_t plXuid = offPlayer::getXUID(ev.Player);
 		string playerReal = offPlayer::getRealName(ev.Player);
 		if (liteloader::runcmdEx("clear \"" + playerReal + "\" potion 0 1").first) {
 			liteloader::runcmdEx("give \"" + playerReal + "\" glass_bottle 1");
@@ -70,7 +70,7 @@ void onPlayerDestroy(PlayerDestroyEV ev) { //水桶及空手喝水
 		if (liteloader::runcmdEx("clear \"" + playerReal + "\" water_bucket 0 1").first) {
 			liteloader::runcmdEx("give \"" + playerReal + "\" bucket 1");
 			//add
-			xuid_t plXuid = stoull(offPlayer::getXUID(ev.Player));
+			xuid_t plXuid = offPlayer::getXUID(ev.Player);
 			wp.sendText(u8"§b你大口喝了一桶水，TP+" + std::to_string(addThirst(plXuid, 50)));
 		}
 		else {
@@ -79,29 +79,28 @@ void onPlayerDestroy(PlayerDestroyEV ev) { //水桶及空手喝水
 		//ev.setCancelled();
 	}
 	if (ev.Player->isInWater() && itemName == "air") {
-		xuid_t plXuid = stoull(offPlayer::getXUID(ev.Player));
+		xuid_t plXuid = offPlayer::getXUID(ev.Player);
 		wp.sendText(u8"§b你将河水捧在手上，一口气喝了下去，TP+" + std::to_string(addThirst(plXuid, 15)));
 		//ev.setCancelled();
 	}
 }
 
 /*void onPlayerPreJoin(PlayerPreJoinEvent& ev) {
-	xuid_t xuid = stoull(ExtendedCertificate::getXuid(ev.cert));
+	xuid_t xuid = std::stoull(ExtendedCertificate::getXuid(ev.cert));
 	if (thirstyList.find(xuid) == thirstyList.end()) {
 		thirstyList[xuid] = 100;
 	}
 }*/
 
-THook(void, "?_onClientAuthenticated@ServerNetworkHandler@@AEAAXAEBVNetworkIdentifier@@AEBVCertificate@@@Z", void* snh, NetworkIdentifier& neti, Certificate& cert) {
-	original(snh, neti, cert);
-	xuid_t xuid = offPlayer::getXUIDbyCert(&cert);
+void onPlayerPreJoin(PreJoinEV ev) {
+	xuid_t xuid = offPlayer::getXUIDByCert(ev.cert);
 	if (thirstyList.find(xuid) == thirstyList.end()) {
 		thirstyList[xuid] = 100;
 	}
 }
 
 void onPlayerJoin(JoinEV ev) {
-	xuid_t xuid = stoull(offPlayer::getXUID(ev.Player));
+	xuid_t xuid = offPlayer::getXUID(ev.Player);
 	if (ev.Player->getDimensionId() == 1) {
 		isNether[xuid] = true;
 	}
@@ -112,7 +111,7 @@ void onPlayerJoin(JoinEV ev) {
 }
 
 void onPlayerDeath(PlayerDeathEV ev) {
-	xuid_t plXuid = stoull(offPlayer::getXUID(ev.Player));
+	xuid_t plXuid = offPlayer::getXUID(ev.Player);
 	thirstyList[plXuid] = 100;
 	thirstyTime[plXuid] = 0;
 }
@@ -123,13 +122,13 @@ THook(void, "?normalTick@Player@@UEAAXXZ", Player* player) {
 		WPlayer wp = WPlayer(*player);
 		//ItemStack* itemStack = SymCall("?getSelectedItem@Player@@QEBAAEBVItemStack@@XZ", ItemStack*, Player*)(player);
 		//if (thirstyList[plXuid] != 0) thirstyTime[plXuid] = thirstyTime[plXuid] + 1;
-		int thirsty = thirstyList[stoull(offPlayer::getXUID(player))];
+		int thirsty = thirstyList[offPlayer::getXUID(player)];
 		string popup;
 		if (thirsty <= 20) {
 			if (thirsty == 0) player->setOnFire(1);
 			//std::cout << SymCall("?getSpeed@Player@@UEBAMXZ", float, Player*)(player) << "\n";
 			//SymCall("?setSpeed@Player@@UEAAXM@Z", void, Player*, float)(player, 0.05);
-			liteloader::runcmdEx("effect \"" + offPlayer::getRealName(player) + "\" slowness 1");
+			liteloader::runcmdEx("effect \"" + offPlayer::getRealName(player) + "\" slowness 2");
 			popup = u8"§cTP:" + std::to_string(thirsty) + u8"%%";
 		}
 		else {
@@ -146,11 +145,11 @@ THook(void, "?normalTick@Player@@UEAAXXZ", Player* player) {
 	return original(player);
 }
 
-THook(void, "?eat@Player@@QEAAXHM@Z", Player* player, int a1, float a2) {
+THook(void, "?eat@Player@@QEAAXAEBVItemStack@@@Z", Player* player, ItemStack* item) {
 	//std::cout << player->getNameTag() << " " << a1 << " " << a2 << "\n";
 	WPlayer wp = WPlayer(*player);
-	wp.sendText(u8"§b从食物中摄取水分，TP+" + std::to_string(addThirst(stoull(offPlayer::getXUID(player)), (a1 / 2))));
-	return original(player, a1, a2);
+	wp.sendText(u8"§b从食物中摄取水分，TP+" + std::to_string(addThirst(offPlayer::getXUID(player), 2)));
+	return original(player, item);
 }
 
 void timer() {
@@ -205,18 +204,16 @@ void entry() {
 	Event::addEventListener(onPlayerUseItem);
 	Event::addEventListener(onPlayerDeath);
 	Event::addEventListener([](ChangeDimEV ev) {
-		xuid_t xuid = stoull(offPlayer::getXUID(ev.Player));
+		xuid_t xuid = offPlayer::getXUID(ev.Player);
 		if (ev.Player->getDimensionId() == 1) {
 			isNether[xuid] = true;
-			WPlayer wp = WPlayer(*ev.Player);
-			wp.sendText(u8"§b[URSystem] 地狱过于炎热，TP消耗速度是主世界的两倍");
 		}
 		else {
 			isNether[xuid] = false;
 		}
 		});
 	Event::addEventListener(onPlayerJoin);
-	//Event::addEventListener(onPlayerPreJoin);
+	Event::addEventListener(onPlayerPreJoin);
 	Event::addEventListener([](LeftEV ev) {
 		thirstyTime.erase(ev.xuid);
 		});
