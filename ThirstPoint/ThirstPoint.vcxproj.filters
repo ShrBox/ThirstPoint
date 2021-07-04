@@ -34,6 +34,6 @@
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <Library Include="..\..\dev0711\LIGHTBASE.lib" />
+    <Library Include="..\..\LiteLoader\x64\Release\LiteLoader.lib" />
   </ItemGroup>
 </Project>

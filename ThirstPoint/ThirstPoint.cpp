@@ -3,6 +3,7 @@
 std::unordered_map<xuid_t, unsigned short> thirstyList;
 std::unordered_map<xuid_t, unsigned short> thirstyTime;
 std::unordered_map<xuid_t, bool> isNether;
+Logger<stdio_commit> LOG(stdio_commit("[ThirstPoint] "));
 
 unsigned short addThirst(xuid_t xuid, unsigned short thirsty) {
 	unsigned short thirsty1 = thirstyList[xuid];
@@ -24,73 +25,81 @@ unsigned short delThirst(xuid_t xuid, unsigned short thirsty) {
 	return thirsty;
 }
 
-void onPlayerUseItem(PlayerUseItemEvent& ev) { //水瓶
-	ItemStack item = ev.getPlayer().get().getCarriedItem();
-	std::string itemName;
+void onPlayerUseItem(PlayerUseItemEV ev) { //水瓶
+	bool isSneaking = SymCall("?isSneaking@Actor@@QEBA_NXZ", bool, Actor*)(ev.Player);
+	if (!isSneaking) return;
+	ItemStack item = ev.Player->getCarriedItem();
+	WPlayer wp = WPlayer(*ev.Player);
+	string itemName;
 	if (item.getId() != 0) {
 		SymCall("?getSerializedName@Item@@QEBA?AV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@XZ",
-			void, const Item*, std::string*)(item.getItem(), &itemName);
+			void, const Item*, string*)(item.getItem(), &itemName);
 	}
 	else {
 		itemName = "air";
 	}
 	if (itemName == "minecraft:potion") {
 		if (item.getAuxValue() != 0) {
-			ev.getPlayer().sendText(u8"非纯净水不能补充TP", JUKEBOX_POPUP);
+			wp.sendText(u8"非纯净水不能补充TP", JUKEBOX_POPUP);
 			return;
 		}
-		xuid_t plXuid = ev.getPlayer().getXuid();
-		if (BDX::runcmdEx("clear \"" + ev.getPlayer().getRealName() + "\" potion 0 1").first) {
-			BDX::runcmdEx("give \"" + ev.getPlayer().getRealName() + "\" glass_bottle 1");
-			ev.getPlayer().sendText(u8"§b你打开瓶子喝了一口水，TP+" + std::to_string(addThirst(plXuid, 20)));;
-		}
-		else {
-			ev.getPlayer().sendText(u8"§b水撒地上了");
+		xuid_t plXuid = offPlayer::getXUID(ev.Player);
+		string playerReal = wp.getName();
+		if (liteloader::runcmdEx("clear \"" + playerReal + "\" potion 0 1").first) {
+			liteloader::runcmdEx("give \"" + playerReal + "\" glass_bottle 1");
+			wp.sendText(u8"§b你打开瓶子喝了一口水，TP+" + std::to_string(addThirst(plXuid, 20)));;
 		}
 	}
 }
 
-void onPlayerDestroy(PlayerDestroyEvent& ev) { //水桶及空手喝水
-	ItemStack item = ev.getPlayer().get().getCarriedItem();
-	std::string itemName;
+THook(bool, "?playerWillDestroy@BlockLegacy@@UEBA_NAEAVPlayer@@AEBVBlockPos@@AEBVBlock@@@Z", BlockLegacy* _this, Player& pl, BlockPos& blkpos, Block& bl) {
+	ItemStack item = pl.getCarriedItem();
+	string itemName;
 	if (item.getId() != 0) {
 		SymCall("?getSerializedName@Item@@QEBA?AV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@XZ",
-			void, const Item*, std::string*)(item.getItem(), &itemName);
+			void, const Item*, string*)(item.getItem(), &itemName);
 	}
 	else {
 		itemName = "air";
 	}
 
 	//ev.getPlayer().sendText(itemName, JUKEBOX_POPUP);
+	WPlayer wp = WPlayer(pl);
+	string playerReal = wp.getName();
 	if (itemName == "minecraft:water_bucket") {
-		if (BDX::runcmdEx("clear \"" + ev.getPlayer().getRealName() + "\" water_bucket 0 1").first) {
-			BDX::runcmdEx("give \"" + ev.getPlayer().getRealName() + "\" bucket 1");
+		if (liteloader::runcmdEx("clear \"" + playerReal + "\" water_bucket 0 1").first) {
+			liteloader::runcmdEx("give \"" + playerReal + "\" bucket 1");
 			//add
-			xuid_t plXuid = ev.getPlayer().getXuid();
-			ev.getPlayer().sendText(u8"§b你大口喝了一桶水，TP+" + std::to_string(addThirst(plXuid, 50)));
+			xuid_t plXuid = offPlayer::getXUID(&pl);
+			wp.sendText(u8"§b你大口喝了一桶水，TP+" + std::to_string(addThirst(plXuid, 50)));
 		}
-		else {
-			ev.getPlayer().sendText(u8"§b水撒地上了");
-		}
-		ev.setCancelled();
+		return false;
 	}
-	if (ev.getPlayer().get().isInWater() && itemName == "air") {
-		xuid_t plXuid = ev.getPlayer().getXuid();
-		ev.getPlayer().sendText(u8"§b你将河水捧在手上，一口气喝了下去，TP+" + std::to_string(addThirst(plXuid, 15)));
-		ev.setCancelled();
+	if (pl.isInWater() && itemName == "air") {
+		xuid_t plXuid = offPlayer::getXUID(&pl);
+		wp.sendText(u8"§b你将河水捧在手上，一口气喝了下去，TP+" + std::to_string(addThirst(plXuid, 15)));
+		return false;
 	}
+	return original(_this, pl, blkpos, bl);
 }
 
-void onPlayerPreJoin(PlayerPreJoinEvent& ev) {
-	xuid_t xuid = stoull(ExtendedCertificate::getXuid(ev.cert));
+/*void onPlayerPreJoin(PlayerPreJoinEvent& ev) {
+	xuid_t xuid = std::stoull(ExtendedCertificate::getXuid(ev.cert));
+	if (thirstyList.find(xuid) == thirstyList.end()) {
+		thirstyList[xuid] = 100;
+	}
+}*/
+
+void onPlayerPreJoin(PreJoinEV ev) {
+	xuid_t xuid = offPlayer::getXUIDByCert(ev.cert);
 	if (thirstyList.find(xuid) == thirstyList.end()) {
 		thirstyList[xuid] = 100;
 	}
 }
 
-void onPlayerJoin(PlayerJoinEvent& ev) {
-	xuid_t xuid = ev.getPlayer().getXuid();
-	if (ev.getPlayer().getDimID() == 1) {
+void onPlayerJoin(JoinEV ev) {
+	xuid_t xuid = offPlayer::getXUID(ev.Player);
+	if (ev.Player->getDimensionId() == 1) {
 		isNether[xuid] = true;
 	}
 	else {
@@ -99,8 +108,8 @@ void onPlayerJoin(PlayerJoinEvent& ev) {
 	thirstyTime[xuid] = 0;
 }
 
-void onPlayerDeath(PlayerDeathEvent& ev) {
-	xuid_t plXuid = ev.getPlayer().getXuid();
+void onPlayerDeath(PlayerDeathEV ev) {
+	xuid_t plXuid = offPlayer::getXUID(ev.Player);
 	thirstyList[plXuid] = 100;
 	thirstyTime[plXuid] = 0;
 }
@@ -111,13 +120,13 @@ THook(void, "?normalTick@Player@@UEAAXXZ", Player* player) {
 		WPlayer wp = WPlayer(*player);
 		//ItemStack* itemStack = SymCall("?getSelectedItem@Player@@QEBAAEBVItemStack@@XZ", ItemStack*, Player*)(player);
 		//if (thirstyList[plXuid] != 0) thirstyTime[plXuid] = thirstyTime[plXuid] + 1;
-		int thirsty = thirstyList[wp.getXuid()];
-		std::string popup;
+		int thirsty = thirstyList[offPlayer::getXUID(player)];
+		string popup;
 		if (thirsty <= 20) {
 			if (thirsty == 0) player->setOnFire(1);
 			//std::cout << SymCall("?getSpeed@Player@@UEBAMXZ", float, Player*)(player) << "\n";
 			//SymCall("?setSpeed@Player@@UEAAXM@Z", void, Player*, float)(player, 0.05);
-			BDX::runcmdEx("effect \"" + wp.getRealName() + "\" slowness 1");
+			liteloader::runcmdEx("effect \"" + offPlayer::getRealName(player) + "\" slowness 2");
 			popup = u8"§cTP:" + std::to_string(thirsty) + u8"%%";
 		}
 		else {
@@ -134,11 +143,11 @@ THook(void, "?normalTick@Player@@UEAAXXZ", Player* player) {
 	return original(player);
 }
 
-THook(void, "?eat@Player@@QEAAXHM@Z", Player* player, int a1, float a2) {
+THook(void, "?eat@Player@@QEAAXAEBVItemStack@@@Z", Player* player, ItemStack* item) {
 	//std::cout << player->getNameTag() << " " << a1 << " " << a2 << "\n";
 	WPlayer wp = WPlayer(*player);
-	wp.sendText(u8"§b从食物中摄取水分，TP+" + std::to_string(addThirst(wp.getXuid(), (a1 / 2))));
-	return original(player, a1, a2);
+	wp.sendText(u8"§b从食物中摄取水分，TP+" + std::to_string(addThirst(offPlayer::getXUID(player), 2)));
+	return original(player, item);
 }
 
 void timer() {
@@ -169,10 +178,10 @@ void popupTimer() {
 			WPlayer wp = pl.second;
 			if (!wp) continue;
 			int thirsty = thirstyList[wp.getXuid()];
-			std::string popup;
+			string popup;
 			if (thirsty <= 20) {
 				if (thirsty == 0) wp.get().setOnFire(2);
-				BDX::runcmdEx("effect \"" + wp.getRealName() + "\" slowness 2");
+				liteloader::runcmdEx("effect \"" + wp.getRealName() + "\" slowness 2");
 				popup = u8"§cTP:" + std::to_string(thirsty) + u8"%%";
 			}
 			else {
@@ -189,24 +198,23 @@ void popupTimer() {
 }*/
 
 void entry() {
-	addListener(onPlayerDestroy);
-	addListener(onPlayerUseItem);
-	addListener(onPlayerDeath);
-	addListener([](PlayerChangeDimEvent& ev) {
-		if (ev.getPlayer().getDimID() == 1) {
-			isNether[ev.getPlayer().getXuid()] = true;
-			ev.getPlayer().sendText(u8"§b[URSystem] 地狱过于炎热，TP消耗速度是主世界的两倍");
+	Event::addEventListener(onPlayerUseItem);
+	Event::addEventListener(onPlayerDeath);
+	Event::addEventListener([](ChangeDimEV ev) {
+		xuid_t xuid = offPlayer::getXUID(ev.Player);
+		if (ev.Player->getDimensionId() == 1) {
+			isNether[xuid] = true;
 		}
 		else {
-			isNether[ev.getPlayer().getXuid()] = false;
+			isNether[xuid] = false;
 		}
 		});
-	addListener(onPlayerJoin);
-	addListener(onPlayerPreJoin);
-	addListener([](PlayerLeftEvent& ev) {
-		thirstyTime.erase(ev.getPlayer().getXuid());
+	Event::addEventListener(onPlayerJoin);
+	Event::addEventListener(onPlayerPreJoin);
+	Event::addEventListener([](LeftEV ev) {
+		thirstyTime.erase(ev.xuid);
 		});
 	std::thread t(timer);
 	t.detach();
-	std::cout << "[ThirstPoint] loaded!\n";
+	LOG("Loaded, version: 210704");
 }

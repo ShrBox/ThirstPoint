@@ -3,7 +3,6 @@
 // 这还将影响 IntelliSense 性能，包括代码完成和许多代码浏览功能。
 // 但是，如果此处列出的文件中的任何一个在生成之间有更新，它们全部都将被重新编译。
 // 请勿在此处添加要频繁更新的文件，这将使得性能优势无效。
-
 #ifndef PCH_H
 #define PCH_H
 
@@ -11,11 +10,15 @@
 #include <iostream>
 #include <lbpch.h>
 //ThirstPoint.cpp
-#include <mcapi/Player.h>
-#include <mcapi/Item.h>
-#include <mcapi/Certificate.h>
+#include <mc/Player.h>
+#include <api/Basic_Event.h>
+#include <mc/OffsetHelper.h>
+#include <mc/Item.h>
 #include <thread>
 #include <windows.h>
 #include <api/xuidreg/xuidreg.h>
+//#include <mc/Certificate.h>
+//#include <mc/mass.h>
+//#include <api\types\types.h>
 
 #endif //PCH_H
